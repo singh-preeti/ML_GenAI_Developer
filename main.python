@@ -1,0 +1,554 @@
+# =========================================================
+# FEATURE ENGINEERING AT SCALE PROJECT
+# MEDALLION ARCHITECTURE + FEATURE STORE
+# PYTHON + MYSQL + PANDAS + SCIKIT-LEARN
+# =========================================================
+
+# INSTALL REQUIRED LIBRARIES:
+# pip install mysql-connector-python pandas numpy scikit-learn
+
+# =========================================================
+# IMPORT LIBRARIES
+# =========================================================
+
+import mysql.connector
+import pandas as pd
+import numpy as np
+
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import MinMaxScaler
+
+# =========================================================
+# MYSQL CONNECTION
+# =========================================================
+
+conn = mysql.connector.connect(
+    host="localhost",
+    user="root",
+    password="mysql"
+)
+
+cursor = conn.cursor()
+
+# =========================================================
+# CREATE DATABASE
+# =========================================================
+
+cursor.execute("""
+CREATE DATABASE IF NOT EXISTS feature_engineering_pipeline
+""")
+
+cursor.execute("USE feature_engineering_pipeline")
+
+print("Database Created Successfully")
+
+# =========================================================
+# CREATE BRONZE TABLE (RAW LOGS)
+# =========================================================
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS bronze_transactions (
+
+    txn_id INT,
+    customer_name VARCHAR(100),
+    account_no VARCHAR(20),
+    txn_date VARCHAR(50),
+    amount VARCHAR(50),
+    txn_type VARCHAR(20),
+    city VARCHAR(50)
+
+)
+""")
+
+print("Bronze Table Created")
+
+# OPTIONAL: CLEAR OLD DATA
+cursor.execute("DELETE FROM bronze_transactions")
+
+# =========================================================
+# LOAD RAW CSV
+# =========================================================
+
+df = pd.read_csv("transactions_raw.csv")
+
+# Replace NaN with None
+df = df.replace({np.nan: None})
+
+print("\nRAW DATA")
+print(df.head())
+
+# =========================================================
+# INSERT INTO BRONZE LAYER
+# =========================================================
+
+insert_query = """
+INSERT INTO bronze_transactions
+(txn_id, customer_name, account_no,
+txn_date, amount, txn_type, city)
+
+VALUES (%s,%s,%s,%s,%s,%s,%s)
+"""
+
+for row in df.itertuples(index=False):
+
+    values = (
+        row.txn_id,
+        row.customer_name,
+        row.account_no,
+        row.txn_date,
+        row.amount,
+        row.txn_type,
+        row.city
+    )
+
+    cursor.execute(insert_query, values)
+
+conn.commit()
+
+print("\nData Loaded Into Bronze Layer")
+
+# =========================================================
+# CHECK BRONZE DATA
+# =========================================================
+
+cursor.execute("""
+SELECT * FROM bronze_transactions
+LIMIT 10
+""")
+
+rows = cursor.fetchall()
+
+print("\nBRONZE DATA")
+
+for row in rows:
+    print(row)
+
+# =========================================================
+# CREATE SILVER TABLE (CLEANED DATA)
+# =========================================================
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS silver_transactions (
+
+    txn_id INT,
+    customer_name VARCHAR(100),
+    account_no VARCHAR(20),
+    txn_date DATETIME,
+    amount DECIMAL(10,2),
+    txn_type VARCHAR(20),
+    city VARCHAR(50)
+
+)
+""")
+
+print("\nSilver Table Created")
+
+# CLEAR OLD DATA
+cursor.execute("DELETE FROM silver_transactions")
+
+# =========================================================
+# READ BRONZE DATA
+# =========================================================
+
+bronze_df = pd.read_sql(
+    "SELECT * FROM bronze_transactions",
+    conn
+)
+
+print("\nRAW BRONZE DATAFRAME")
+print(bronze_df.head())
+
+# =========================================================
+# SILVER LAYER CLEANING
+# =========================================================
+
+# ---------------------------------------------------------
+# CLEAN CUSTOMER NAME
+# ---------------------------------------------------------
+
+bronze_df['customer_name'] = (
+
+    bronze_df['customer_name']
+    .fillna("Unknown")
+    .str.strip()
+    .str.title()
+
+)
+
+# ---------------------------------------------------------
+# CLEAN CITY
+# ---------------------------------------------------------
+
+bronze_df['city'] = (
+
+    bronze_df['city']
+    .fillna("Unknown")
+    .str.strip()
+    .str.title()
+
+)
+
+# ---------------------------------------------------------
+# CLEAN TRANSACTION TYPE
+# ---------------------------------------------------------
+
+bronze_df['txn_type'] = (
+
+    bronze_df['txn_type']
+    .fillna("UNKNOWN")
+    .str.strip()
+    .str.upper()
+
+)
+
+# ---------------------------------------------------------
+# CLEAN AMOUNT
+# ---------------------------------------------------------
+
+bronze_df['amount'] = pd.to_numeric(
+    bronze_df['amount'],
+    errors='coerce'
+)
+
+# Replace NULL with 0
+bronze_df['amount'] = bronze_df['amount'].fillna(0)
+
+# Convert negative values to positive
+bronze_df['amount'] = bronze_df['amount'].abs()
+
+# ---------------------------------------------------------
+# CLEAN DATE
+# ---------------------------------------------------------
+
+bronze_df['txn_date'] = pd.to_datetime(
+    bronze_df['txn_date'],
+    errors='coerce'
+)
+
+# ---------------------------------------------------------
+# REMOVE DUPLICATES
+# ---------------------------------------------------------
+
+bronze_df = bronze_df.drop_duplicates()
+
+print("\nCLEANED SILVER DATA")
+print(bronze_df.head())
+
+# =========================================================
+# INSERT INTO SILVER TABLE
+# =========================================================
+
+silver_insert = """
+INSERT INTO silver_transactions
+(txn_id, customer_name, account_no,
+txn_date, amount, txn_type, city)
+
+VALUES (%s,%s,%s,%s,%s,%s,%s)
+"""
+
+for row in bronze_df.itertuples(index=False):
+
+    values = (
+
+        int(row.txn_id),
+
+        row.customer_name,
+
+        row.account_no,
+
+        row.txn_date.to_pydatetime()
+        if pd.notnull(row.txn_date)
+        else None,
+
+        float(row.amount),
+
+        row.txn_type,
+
+        row.city
+
+    )
+
+    cursor.execute(silver_insert, values)
+
+conn.commit()
+
+print("\nData Inserted Into Silver Layer")
+
+# =========================================================
+# VALIDATION CHECKS
+# =========================================================
+
+print("\nCHECK NULL DATES")
+
+cursor.execute("""
+SELECT * FROM silver_transactions
+WHERE txn_date IS NULL
+""")
+
+for row in cursor.fetchall():
+    print(row)
+
+print("\nCHECK NEGATIVE AMOUNTS")
+
+cursor.execute("""
+SELECT * FROM silver_transactions
+WHERE amount < 0
+""")
+
+for row in cursor.fetchall():
+    print(row)
+
+# =========================================================
+# FEATURE ENGINEERING LAYER
+# =========================================================
+
+feature_df = bronze_df.copy()
+
+print("\nSTARTING FEATURE ENGINEERING")
+
+# ---------------------------------------------------------
+# CATEGORICAL ENCODING
+# ---------------------------------------------------------
+
+# CREDIT = 1
+# DEBIT = 0
+
+feature_df['txn_type_encoded'] = (
+
+    feature_df['txn_type']
+    .map({
+        'CREDIT': 1,
+        'DEBIT': 0
+    })
+
+)
+
+print("\nTransaction Type Encoded")
+
+# ---------------------------------------------------------
+# CITY LABEL ENCODING
+# ---------------------------------------------------------
+#OneHotEncoder and LabelEncoder to convert categorical to numerical variables
+city_encoder = LabelEncoder()
+
+feature_df['city_encoded'] = city_encoder.fit_transform(
+    feature_df['city']
+)
+
+print("City Encoding Completed")
+
+# ---------------------------------------------------------
+# NORMALIZATION
+# ---------------------------------------------------------
+#Scikit-learn is a powerful machine-learning library
+# offers feature scaling methods like StandardScaler and Minmaxscaler
+scaler = MinMaxScaler()
+
+feature_df[['normalized_amount']] = scaler.fit_transform(
+    feature_df[['amount']]
+)
+
+print("Amount Normalization Completed")
+
+# ---------------------------------------------------------
+# DERIVED FEATURES
+# ---------------------------------------------------------
+
+# HIGH VALUE TRANSACTION
+
+feature_df['high_value_txn'] = (
+    feature_df['amount'] > 5000
+).astype(int)
+
+# WEEKEND TRANSACTION
+
+feature_df['is_weekend'] = (
+    feature_df['txn_date'].dt.dayofweek >= 5
+).astype(int)
+
+# MONTH FEATURE
+
+feature_df['txn_month'] = (
+    feature_df['txn_date'].dt.month
+)
+
+# DAY FEATURE
+
+feature_df['txn_day'] = (
+    feature_df['txn_date'].dt.day
+)
+
+print("Derived Features Created")
+
+# ---------------------------------------------------------
+# LABEL CREATION (GROUND TRUTH)
+# ---------------------------------------------------------
+
+# FRAUD LABEL
+
+feature_df['is_fraud'] = (
+    feature_df['amount'] > 10000
+).astype(int)
+
+print("Fraud Labels Generated")
+
+# =========================================================
+# CREATE FEATURE STORE
+# =========================================================
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS feature_store (
+
+    txn_id INT,
+
+    txn_type_encoded INT,
+
+    city_encoded INT,
+
+    normalized_amount FLOAT,
+
+    high_value_txn INT,
+
+    is_weekend INT,
+
+    txn_month INT,
+
+    txn_day INT,
+
+    is_fraud INT
+
+)
+""")
+
+print("\nFeature Store Created")
+
+# CLEAR OLD FEATURES
+cursor.execute("DELETE FROM feature_store")
+
+# =========================================================
+# INSERT FEATURES INTO FEATURE STORE
+# =========================================================
+
+feature_insert = """
+INSERT INTO feature_store (
+
+    txn_id,
+    txn_type_encoded,
+    city_encoded,
+    normalized_amount,
+    high_value_txn,
+    is_weekend,
+    txn_month,
+    txn_day,
+    is_fraud
+
+)
+
+VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+"""
+
+for row in feature_df.itertuples(index=False):
+
+    values = (
+
+        int(row.txn_id),
+
+        int(row.txn_type_encoded)
+        if pd.notnull(row.txn_type_encoded)
+        else None,
+
+        int(row.city_encoded),
+
+        float(row.normalized_amount),
+
+        int(row.high_value_txn),
+
+        int(row.is_weekend),
+
+        int(row.txn_month)
+        if pd.notnull(row.txn_month)
+        else None,
+
+        int(row.txn_day)
+        if pd.notnull(row.txn_day)
+        else None,
+
+        int(row.is_fraud)
+
+    )
+
+    cursor.execute(feature_insert, values)
+
+conn.commit()
+
+print("\nFeatures Inserted Into Feature Store")
+
+# =========================================================
+# FEATURE STORE VALIDATION
+# =========================================================
+
+feature_store_df = pd.read_sql(
+    "SELECT * FROM feature_store",
+    conn
+)
+
+print("\nFEATURE STORE DATA")
+print(feature_store_df)
+
+# =========================================================
+# EXPORT CURATED FEATURES
+# =========================================================
+
+feature_df.to_csv(
+    "curated_features.csv",
+    index=False
+)
+
+print("\nCurated Features Exported")
+
+# =========================================================
+# BUSINESS ANALYTICS TABLE
+# =========================================================
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS gold_customer_summary AS
+
+SELECT
+
+    customer_name,
+
+    account_no,
+
+    SUM(amount) AS total_transaction_amount,
+
+    COUNT(*) AS total_transactions,
+
+    AVG(amount) AS average_transaction
+
+FROM silver_transactions
+
+GROUP BY customer_name, account_no
+""")
+
+print("\nGold Analytics Table Created")
+
+# =========================================================
+# FINAL ANALYTICS OUTPUT
+# =========================================================
+
+gold_df = pd.read_sql(
+    "SELECT * FROM gold_customer_summary",
+    conn
+)
+
+print("\nGOLD LAYER ANALYTICS")
+print(gold_df)
+
+# =========================================================
+# CLOSE CONNECTION
+# =========================================================
+
+cursor.close()
+conn.close()
+
+print("\nPIPELINE EXECUTED SUCCESSFULLY")
