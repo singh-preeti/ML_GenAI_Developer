@@ -5,10 +5,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics  import accuracy_score
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
 
 #Step 2
+#np.random.randint(1, 1001, 100)
 np.random.seed(42)
 
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 1000)
 data_size = 1000
 
 data = pd.DataFrame({
@@ -54,7 +58,6 @@ lr_predictions = lr_model.predict(X_test)
 lr_accuracy = accuracy_score(y_test, lr_predictions)
 
 print("Logistic Regression Accuracy:", lr_accuracy)
-
 
 #Step 7 Feature engineering
 data["engagement_score"] = (
