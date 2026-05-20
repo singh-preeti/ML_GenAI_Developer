@@ -54,3 +54,46 @@ lr_predictions = lr_model.predict(X_test)
 lr_accuracy = accuracy_score(y_test, lr_predictions)
 
 print("Logistic Regression Accuracy:", lr_accuracy)
+
+
+#Step 7 Feature engineering
+data["engagement_score"] = (
+    data["pages_viewed"] * data["time_on_site"]
+)
+X = data.drop("purchased", axis=1)
+y = data["purchased"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42
+)
+print(data)
+#Step 8
+
+tree_model = DecisionTreeClassifier(max_depth=5)
+
+tree_model.fit(X_train, y_train)
+
+tree_predictions = tree_model.predict(X_test)
+
+tree_accuracy = accuracy_score(y_test, tree_predictions)
+
+print("Decision Tree Accuracy:", tree_accuracy)
+
+
+#Step 9
+
+rf_model = RandomForestClassifier(
+    n_estimators=100,
+    random_state=42
+)
+
+rf_model.fit(X_train, y_train)
+
+rf_predictions = rf_model.predict(X_test)
+
+rf_accuracy = accuracy_score(y_test, rf_predictions)
+
+print("Random Forest Accuracy:", rf_accuracy)
