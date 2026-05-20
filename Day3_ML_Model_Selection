@@ -1,0 +1,56 @@
+import numpy as np
+import pandas as pd
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics  import accuracy_score
+from sklearn.ensemble import RandomForestClassifier
+
+#Step 2
+np.random.seed(42)
+
+data_size = 1000
+
+data = pd.DataFrame({
+    "age": np.random.randint(18, 60, data_size),
+    "salary": np.random.randint(20000, 150000, data_size),
+    "pages_viewed": np.random.randint(1, 50, data_size),
+    "time_on_site": np.random.randint(1, 30, data_size),
+    "discount_used": np.random.randint(0, 2, data_size),
+    "previous_purchases": np.random.randint(0, 20, data_size),
+    "cart_value": np.random.randint(500, 20000, data_size)
+})
+
+#print(data)
+
+#Step 3
+data["purchased"] = (
+    (data["salary"] > 50000) &
+    (data["time_on_site"] > 10) &
+    (data["cart_value"] > 3000)
+).astype(int)
+
+print(data.head())
+
+#Step 4
+X = data.drop("purchased", axis=1)
+y = data["purchased"]
+
+#Step 5
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42
+)
+
+#Step 6
+lr_model = LogisticRegression(max_iter=1000)
+
+lr_model.fit(X_train, y_train)
+
+lr_predictions = lr_model.predict(X_test)
+
+lr_accuracy = accuracy_score(y_test, lr_predictions)
+
+print("Logistic Regression Accuracy:", lr_accuracy)
