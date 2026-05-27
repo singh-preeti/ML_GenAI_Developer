@@ -1,0 +1,35 @@
+Day 1: The MLOps Lifecycle & System Design  
+Focus: Shifting from "Model Accuracy" to "System Reliability." 
+ ML vs. Traditional Software: Understanding why ML requires a unique CI/CD/CT  (Continuous Training) approach.  
+ Problem Framing: Determining when to use Heuristics, Classical ML, or Deep  Learning.  
+ Architecture Blueprints: Designing for Batch vs. Request-Response (Real-time)  inference.  
+ The "Hidden Technical Debt": Identifying the infrastructure surrounding the ML  code (Configuration, Monitoring, Feature Extraction).  
+ Management Track: Estimating ML project timelines and defining "Success  Metrics" (Business KPIs vs. Model Metrics).  
+Day 2: Data Engineering for ML (The Feature Store)  
+Focus: Building the foundation of high-quality training data. 
+ Feature Engineering at Scale: Handling categorical encoding, normalization, and  missing data in production pipelines.  
+ The Feature Store: Solving "Training-Serving Skew" by using a unified source for  offline training and online serving.  
+ Data Versioning: Using tools like DVC or Lakehouse snapshots to ensure  reproducible experiments.  
+ Labeling & Ground Truth: Strategies for active learning and managing high-quality  labeled datasets.  
+ Hands-on Concept: Building a pipeline that transforms raw logs into a curated  feature set.  
+Day 3: Model Development & Experiment Tracking  
+Focus: Disciplined experimentation and reproducibility. 
+ Framework Selection: Navigating the ecosystem (Scikit-Learn, PyTorch,  TensorFlow, or XGBoost) based on the use case.  
+ Hyperparameter Optimization: Strategies for Grid Search, Random Search, and  Bayesian Optimization.  
+ Experiment Tracking: Using MLflow or Weights & Biases to log parameters,  metrics, and artifacts.  
+ Model Evaluation: Moving beyond Accuracy—Precision-Recall curves, F1-Score,  and ROC-AUC for imbalanced datasets.  
+ Management Track: The "Fail Fast" philosophy—identifying when a model is not  viable before over-investing.  
+Day 4: Deployment Strategies & Model Serving  
+Focus: Getting models out of the lab and into the hands of users.
+ Model Packaging: Containerization with Docker and Kubernetes for consistent  environments.  
+ Inference Patterns: 
+o Batch Scoring: High-throughput processing for non-urgent tasks.  
+o Online Serving: Low-latency REST APIs (FastAPI, BentoML, or Ray Serve).  o Edge Deployment: Brief overview of Mobile/IoT constraints.  
+ Deployment Patterns: Blue-Green deployments and Canary releases to mitigate risk.   A/B Testing for ML: Designing experiments to validate model impact on real users.  
+Day 5: The LLM & Generative AI Frontier  
+Focus: Practical integration of Large Language Models into corporate workflows. 
+ Foundation Models vs. Fine-tuning: When to use an API (OpenAI/Claude) versus  training your own.  
+ Retrieval-Augmented Generation (RAG): The modern blueprint for connecting  LLMs to private corporate data.  
+ Vector Databases: Understanding the role of Pinecone, Milvus, or Snowflake Vector  types.  
+ Prompt Engineering as Code: Versioning and testing prompts as carefully as  software.  
+ Management Track: The Ethics & Governance of AI—Bias, Hallucinations, and  Data Privacy (PII) concerns.  
